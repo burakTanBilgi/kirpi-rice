@@ -1,0 +1,132 @@
+#!/bin/bash
+# kimera-rest: Kirpi's resting screen, drawn on the plain text console.
+# The hedgehog, the name, one line per job held now, the processor over the last hour, the clock.
+# It redraws every 30 seconds and holds no window system. Any key opens the deck, when there is one.
+#
+# Jobs: every file in $JOBS is one job held now; its first line is shown as it is.
+export LC_ALL=C.UTF-8
+NAME='k i r p i'
+JOBS=${KIMERA_JOBS:-/run/kimera/jobs}
+DECK=${KIMERA_DECK:-/usr/local/bin/kimera-deck}
+TICK=${KIMERA_TICK:-30}      # seconds between redraws
+PER_BAR=${KIMERA_PER_BAR:-2} # redraws per processor bar: 2 x 30 s = one bar a minute
+BARS=60
+DIM=${KIMERA_DIM:-25%}
+FONT=/usr/local/share/kimera/kirpi-32x16.psf.gz   # Terminus Bold with the half blocks added
+
+# soot, orange, teal, bone, light teal
+P_SOOT=1f1c1a P_ORANGE=e8873a P_TEAL=4c8782 P_BONE=f6cfa0 P_LTEAL=8cc0b5 P_GREY=6f655c
+ORANGE=$'\e[31m' TEAL=$'\e[32m' BONE=$'\e[33m' LTEAL=$'\e[36m' GREY=$'\e[35m' OFF=$'\e[0m'
+
+ICON=(
+'              ▄█                '
+'        ██▄  ▄███     ▄         '
+'        ██████████▄▄███         '
+'   ▄▄▄▄████████████████         '
+'   ████████████████████▄▄▄▄     '
+'    ██████████████████████▀     '
+'▄▄▄███████████████████████▄     '
+'▀███████████████████████████▄▄  '
+' ▀█████████████████████████████▀'
+'  ▀▀▀▀▀████▀▀▀▀▀▀███▀▀▀▀▀▀▀▀▀▀  '
+'       ▀▀▀▀      ▀▀▀            '
+)
+ICON_W=32
+
+hist=()           # processor load per bar, 0..100, oldest first
+prev_total=0 prev_idle=0 ticks=0
+
+screen_on() {
+  [ "$TERM" = linux ] && {
+    setfont "$FONT" 2>/dev/null
+    printf '\e%%G'                                   # UTF-8
+    printf '\e]P0%s\e]P1%s\e]P2%s\e]P3%s\e]P5%s\e]P6%s\e]P7%s' \
+      $P_SOOT $P_ORANGE $P_TEAL $P_BONE $P_GREY $P_LTEAL $P_BONE
+    printf '\e[9;0]\e[14;0]'                         # the console never blanks by itself
+  }
+  command -v brightnessctl >/dev/null && brightnessctl -q set "$DIM" 2>/dev/null
+  printf '\e[?25l\e[0m\e[2J'
+}
+screen_off() { printf '\e[0m\e[2J\e[H\e[?25h'; [ "$TERM" = linux ] && printf '\e]R'; }
+trap 'screen_off; exit 0' INT TERM HUP
+
+at() { printf '\e[%d;1H\e[2K' "$1"; }                # go to a row and clear it
+centre() {                                           # row, colour, text
+  local w=${#3}; local x=$(( (COLS - w) / 2 + 1 )); [ $x -lt 1 ] && x=1
+  at "$1"; printf '\e[%d;%dH%s%s%s' "$1" "$x" "$2" "$3" "$OFF"
+}
+
+sample() {                                           # sets $load, 0..100, since the last call
+  local cpu u n s i w q sq st rest total idle
+  read -r cpu u n s i w q sq st rest < /proc/stat
+  total=$((u + n + s + i + w + q + sq + st)); idle=$((i + w))
+  if [ $prev_total -gt 0 ] && [ $total -gt $prev_total ]; then
+    load=$(( 100 - 100 * (idle - prev_idle) / (total - prev_total) ))
+  else load=0; fi
+  prev_total=$total; prev_idle=$idle
+}
+
+bars() {                                             # first row; three rows, six steps
+  local row b v lv line x=$(( (COLS - BARS) / 2 + 1 )) pad=$(( BARS - ${#hist[@]} ))
+  for b in 2 1 0; do
+    line=$(printf '%*s' $pad '')
+    for v in "${hist[@]}"; do
+      lv=$(( (v * 6 + 50) / 100 )); [ $lv -lt 1 ] && lv=1
+      if   [ $lv -ge $(( 2 * b + 2 )) ]; then line+='█'
+      elif [ $lv -eq $(( 2 * b + 1 )) ]; then line+='▄'
+      else line+=' '; fi
+    done
+    row=$(( $1 + 2 - b )); at $row; printf '\e[%d;%dH%s%s%s' $row $x "$TEAL" "$line" "$OFF"
+  done
+}
+
+jobs_lines() {                                       # first row; three rows kept for jobs
+  local f n=0 line
+  for f in "$JOBS"/*; do
+    [ -f "$f" ] || continue
+    IFS= read -r line < "$f"; [ -n "$line" ] || continue
+    centre $(( $1 + n )) "$LTEAL" "${line:0:$((COLS - 4))}"; n=$((n + 1)); [ $n -ge 3 ] && break
+  done
+  [ $n -eq 0 ] && { centre "$1" "$GREY" 'no job yet'; n=1; }
+  while [ $n -lt 3 ]; do at $(( $1 + n )); n=$((n + 1)); done
+}
+
+draw() {
+  local size r top i foot
+  size=$(stty size 2>/dev/null) || size='33 120'
+  ROWS=${size% *}; COLS=${size#* }
+  top=$(( (ROWS - 26) / 2 + 1 )); [ $top -lt 1 ] && top=1
+  if [ "$1" = all ]; then
+    printf '\e[2J'
+    for i in "${!ICON[@]}"; do
+      printf '\e[%d;%dH%s%s%s' $((top + i)) $(( (COLS - ICON_W) / 2 + 1 )) "$ORANGE" "${ICON[$i]}" "$OFF"
+    done
+    centre $((top + 13)) "$BONE" "$NAME"
+    centre $((top + 23)) "$ORANGE" 'processor · the last hour'
+  fi
+  jobs_lines $((top + 15))
+  bars $((top + 19))
+  foot=$(date +%H:%M); [ -x "$DECK" ] && foot+=' · any key: the deck'
+  centre $((top + 25)) "$BONE" "$foot"
+}
+
+screen_on
+sample; draw all
+last_size=$(stty size 2>/dev/null)
+while :; do
+  if IFS= read -rsn1 -t "$TICK" key; then
+    while IFS= read -rsn1 -t 0.05 key; do :; done    # drop the rest of what was typed
+    if [ -x "$DECK" ]; then
+      screen_off; "$DECK"; screen_on; draw all
+    else
+      centre $(( ROWS - 1 )) "$GREY" 'the deck is not built yet'; sleep 3; at $(( ROWS - 1 ))
+    fi
+    continue
+  fi
+  ticks=$((ticks + 1))
+  if [ $((ticks % PER_BAR)) -eq 0 ]; then
+    sample; hist+=("$load"); [ ${#hist[@]} -gt $BARS ] && hist=("${hist[@]:1}")
+  fi
+  size=$(stty size 2>/dev/null)
+  if [ "$size" != "$last_size" ]; then last_size=$size; draw all; else draw; fi
+done

@@ -1,0 +1,15 @@
+# Kirpi's deck under sway: one window filling the screen. No bar, no workspaces, no shortcuts.
+# The deck itself takes its six letters. Five minutes with no key, or R, ends sway: back to rest.
+xwayland disable
+default_border none
+default_floating_border pixel 3
+focus_follows_mouse no
+seat * hide_cursor 2000
+input type:keyboard {
+    xkb_layout "@LAYOUT@"
+}
+client.focused #E8873A #1f1c1a #f6cfa0 #E8873A #E8873A
+for_window [app_id="kimera-term"] floating enable, resize set 1200 700, move position center
+exec swayidle -w timeout 300 'swaymsg exit'
+# if the deck's window ever closes, sway closes with it, so the screen is never left empty
+exec sh -c '/usr/local/bin/kimera-deck-panel; swaymsg exit'

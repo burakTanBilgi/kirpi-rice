@@ -1,0 +1,5 @@
+#!/bin/sh
+# kimera-deck: opens Kirpi's deck from the resting screen and returns when it closes.
+command -v brightnessctl >/dev/null && brightnessctl -q set 70%
+export XDG_CURRENT_DESKTOP=sway XDG_SESSION_TYPE=wayland GDK_BACKEND=wayland NO_AT_BRIDGE=1
+sway -c /etc/kimera/deck.sway > "${XDG_RUNTIME_DIR:-/tmp}/kimera-deck.log" 2>&1
