@@ -26,7 +26,7 @@ After five minutes without a key the deck closes and the machine rests again. Th
 | `kirpi-32x16.psf.gz`, `make-font.py` | The console font: Debian's Terminus Bold 32x16 (`Lat15-TerminusBold32x16.psf.gz`, package `console-setup-linux`) with the pilcrow and the section sign replaced by the two half blocks, and the script that makes it. |
 | `rest-install.sh`, `login-install.sh`, `kimera-rest-login.sh` | Install the resting screen, then put the password login back in front of it. |
 | `deck/kimera-deck-panel` | The deck (Python, GTK 3, cairo), drawn over the still artwork. |
-| `deck/make-art.py`, `deck/marks.py`, `deck/kirpi-deck.svg`, `deck/kirpi-deck.png` | The artwork. `make-art.py` (run inside `deck/`) writes the SVG; the PNG is that SVG rendered at 1920 x 1080 with grain added. |
+| `deck/make-art.py`, `deck/marks.py`, `deck/kirpi-deck.svg`, `deck/kirpi-deck.png` | The artwork. `make-art.py` (run inside `deck/`) writes the SVG, grain included as an SVG filter; the PNG is that SVG rendered at 1920 x 1080 with any SVG renderer (`rsvg-convert -w 1920 -h 1080 kirpi-deck.svg > kirpi-deck.png`). |
 | `deck/deck.sway`, `deck/foot.ini`, `deck/kimera-deck`, `deck/deck-install.sh` | sway holds one window; the installer puts everything in place. |
 | `awake-install.sh` | The machine never sleeps, lid closed or not. |
 | `kimera-poweroff`, `poweroff-install.sh` | One user may power the machine off or restart it without sudo, and nothing else. |
@@ -59,7 +59,6 @@ Read each script first; they are short and say what they change. Things to know 
   while others are logged in. The deck's `o` key needs it. It needs polkit (`apt install polkitd`).
 - The scripts install from Debian's own archive: brightnessctl, sway, swayidle, foot, the GTK and cairo
   bindings the deck's program needs, and two tools for the deck's terminal, grim (screenshots) and btop.
-
 - `awake-install.sh` is optional and for a machine that stays plugged in on a desk: a laptop that cannot sleep
   gets hot in a bag. Its header says how to undo it.
 

@@ -2,6 +2,7 @@
 # Run with sudo: the machine never goes to sleep, lid closed or not. For a machine that stays plugged in on a desk:
 # a laptop that cannot sleep gets hot in a bag. Undo: delete /etc/systemd/logind.conf.d/10-kimera-awake.conf,
 # then  systemctl unmask sleep.target suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target
+# and   systemctl kill -s HUP systemd-logind   (or restart), so logind reads its settings again
 set -e
 [ "$(id -u)" -eq 0 ] || { echo "run with sudo"; exit 1; }
 mkdir -p /etc/systemd/logind.conf.d
